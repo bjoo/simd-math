@@ -72,7 +72,8 @@ class cuda_warp {
   static_assert(N <= 32, "CUDA warps can't be more than 32 threads");
  public:
   SIMD_HOST_DEVICE static unsigned mask() {
-    return (unsigned(1) << N) - unsigned(1);
+
+    return N == 32 ? 0xffffffff : ( (unsigned(1) << N) - unsigned(1) ) ;
   }
 };
 
@@ -165,14 +166,14 @@ class simd<T, simd_abi::cuda_warp<N>> {
   using storage_type = simd_storage<T, abi_type>;
   SIMD_CUDA_ALWAYS_INLINE simd() = default;
   SIMD_CUDA_ALWAYS_INLINE SIMD_HOST_DEVICE static constexpr int size() { return N; }
-  SIMD_CUDA_ALWAYS_INLINE SIMD_DEVICE simd(T value)
+  SIMD_CUDA_ALWAYS_INLINE SIMD_HOST_DEVICE simd(T value)
     :m_value(value)
   {}
-  SIMD_CUDA_ALWAYS_INLINE SIMD_DEVICE
+  SIMD_CUDA_ALWAYS_INLINE SIMD_HOST_DEVICE
   simd(storage_type const& value) {
     copy_from(value.data(), element_aligned_tag());
   }
-  SIMD_CUDA_ALWAYS_INLINE SIMD_DEVICE
+  SIMD_CUDA_ALWAYS_INLINE SIMD_HOST_DEVICE
   simd& operator=(storage_type const& value) {
     copy_from(value.data(), element_aligned_tag());
     return *this;
@@ -262,6 +263,14 @@ SIMD_CUDA_ALWAYS_INLINE SIMD_HOST_DEVICE simd<T, simd_abi::cuda_warp<N>> choose(
     simd<T, simd_abi::cuda_warp<N>> const& c) {
   return simd<T, simd_abi::cuda_warp<N>>(a.get() ? b.get() : c.get());
 }
+
+  // Generic Permute
+  template <class T, int N>
+SIMD_ALWAYS_INLINE SIMD_HOST_DEVICE
+  inline simd<T, simd_abi::cuda_warp<N>> permute(simd<int, simd_abi::cuda_warp<N>> const& control, simd<T, simd_abi::cuda_warp<N>> const& a) {
+    return simd<T,simd_abi::cuda_warp<N>>(  __shfl_sync(simd_abi::cuda_warp<N>::mask(), a.get(),  control.get(), N));
+  }
+
 
 }
 
